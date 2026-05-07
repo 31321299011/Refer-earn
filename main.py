@@ -147,7 +147,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try:
                     await context.bot.send_message(ref_id,
                         f"🔔 @{username} আপনার রেফারেল লিংক দিয়ে বট জয়েন করেছে।\n"
-                        "চ্যানেল জয়েন করলে আপনি 0.03 টাকা পাবেন।")
+                        "চ্যানেল জয়েন করলে আপনি 0.3 টাকা পাবেন।")
                 except:
                     pass
 
@@ -174,7 +174,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"╚══════════════════╝\n\n"
             f"👋 স্বাগতম, <b>{user.full_name}</b>!\n"
             f"────────────────────\n"
-            f"📌 প্রতি রেফারেল = 0.03 টাকা\n"
+            f"📌 প্রতি রেফারেল = 0.3 টাকা\n"
             f"📌 উইথড্র মিনিমাম = 1 টাকা\n"
             f"📌 চ্যানেল জয়েন আবশ্যক\n"
             f"────────────────────\n"
