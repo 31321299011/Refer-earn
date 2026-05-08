@@ -1,11 +1,10 @@
 import asyncio
 import logging
 from io import BytesIO
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
-    ReplyKeyboardMarkup, KeyboardButton, ChatPermissions,
     InputMediaPhoto
 )
 from telegram.ext import (
@@ -21,15 +20,13 @@ JSONBIN_ACCESS_KEY = "$2a$10$7Nb5QAYjDezYlvPsRMGxnerfh.nthYJtLF3ac54jCIucQUsS3y3
 JSONBIN_BASE_URL = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
 JSONBIN_HEADERS = {"X-Access-Key": JSONBIN_ACCESS_KEY, "Content-Type": "application/json"}
 
-# ---------- Bot Config ----------
 BOT_TOKEN = "8796667551:AAFkP5STUqnsV7v0FtVrwnmmBZMJy7U8aaA"
 DEVELOPER_ID = 8194390770
 BOT_USERNAME = "@welcome_notify_bot"
 
-# Conversation states
 SET_CHANNEL_LINK, BROADCAST_MSG = range(2)
 
-# ---------- Language Pack ----------
+# ---------- Languages ----------
 LANG = {
     "en": {
         "flag": "🇬🇧 English",
@@ -66,8 +63,7 @@ LANG = {
         "start_priv": (
             "🤖 <b>ওয়েলকাম নোটিফাই বট</b>\n\n"
             "ডেভেলপার: @bot_developer_io\n"
-            "হেল্পার: @jhgmaing\n\n"
-            "গ্রুপ/চ্যানেলে অ্যাড করুন।"
+            "হেল্পার: @jhgmaing"
         ),
         "add_btn": "➕ গ্রুপ/চ্যানেলে যোগ করুন",
         "settings": "⚙️ গ্রুপ সেটিংস",
@@ -85,11 +81,7 @@ LANG = {
         "set_fail": "❌ Я не админ в этом канале.",
         "lang_ok": "✅ Язык: Русский.",
         "choose_lang": "Выберите язык:",
-        "start_priv": (
-            "🤖 <b>Welcome Notify Bot</b>\n\n"
-            "Разработчик: @bot_developer_io\n"
-            "Помощник: @jhgmaing"
-        ),
+        "start_priv": "🤖 <b>Welcome Notify Bot</b>\n\nРазработчик: @bot_developer_io",
         "add_btn": "➕ Добавить в группу/канал",
         "settings": "⚙️ Настройки",
         "set_ch_btn": "📌 Обязательный канал",
@@ -106,11 +98,7 @@ LANG = {
         "set_fail": "❌ मैं उस चैनल का एडमिन नहीं।",
         "lang_ok": "✅ भाषा हिन्दी सेट।",
         "choose_lang": "भाषा चुनें:",
-        "start_priv": (
-            "🤖 <b>वेलकम नोटिफाई बॉट</b>\n\n"
-            "डेवलपर: @bot_developer_io\n"
-            "हेल्पर: @jhgmaing"
-        ),
+        "start_priv": "🤖 <b>वेलकम नोटिफाई बॉट</b>\n\nडेवलपर: @bot_developer_io",
         "add_btn": "➕ ग्रुप/चैनल में जोड़ें",
         "settings": "⚙️ सेटिंग्स",
         "set_ch_btn": "📌 फोर्स चैनल",
@@ -121,9 +109,12 @@ LANG = {
 
 # ---------- Database Helpers ----------
 async def get_data(session) -> dict:
-    async with session.get(JSONBIN_BASE_URL + "/latest", headers=JSONBIN_HEADERS) as resp:
-        if resp.status == 200:
-            return (await resp.json()).get("record", {})
+    try:
+        async with session.get(JSONBIN_BASE_URL + "/latest", headers=JSONBIN_HEADERS) as resp:
+            if resp.status == 200:
+                return (await resp.json()).get("record", {})
+    except:
+        pass
     return {}
 
 async def save_data(session, data: dict) -> bool:
@@ -167,7 +158,6 @@ async def get_broadcast_ids(session) -> List[int]:
 
 # ---------- Photo Helpers ----------
 async def get_photo_bytes(chat_or_user, bot) -> Optional[BytesIO]:
-    """Get profile photo file as bytes (largest size)."""
     try:
         if hasattr(chat_or_user, 'photo') and chat_or_user.photo:
             file_id = chat_or_user.photo.big_file_id
@@ -193,7 +183,6 @@ async def get_group_photo_bytes(chat_id, bot) -> Optional[BytesIO]:
         pass
     return None
 
-# ---------- Force Join Check ----------
 async def is_member(channel_id: str, user_id: int, bot) -> bool:
     try:
         member = await bot.get_chat_member(channel_id, user_id)
@@ -204,16 +193,16 @@ async def is_member(channel_id: str, user_id: int, bot) -> bool:
 # ---------- Handlers ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    msg = update.message or update.edited_message
+    msg = update.message
+    session = context.application.bot_data["session"]
     if chat.type == ChatType.PRIVATE:
         text = LANG["en"]["start_priv"]
         btn = InlineKeyboardMarkup([
             [InlineKeyboardButton(LANG["en"]["add_btn"], url=f"https://t.me/{BOT_USERNAME[1:]}?startgroup=true")]
         ])
-        await msg.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=btn, disable_web_page_preview=True)
-        await add_broadcast_id(chat.id, context.application.bot_data["session"])
+        await msg.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=btn)
+        await add_broadcast_id(chat.id, session)
     else:
-        # Group: show admin panel
         user_id = update.effective_user.id
         try:
             mem = await context.bot.get_chat_member(chat.id, user_id)
@@ -221,7 +210,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
         except:
             return
-        session = context.application.bot_data["session"]
         lang = await get_lang(chat.id, session)
         btns = [
             [InlineKeyboardButton(LANG[lang]["set_ch_btn"], callback_data="set_force_channel")],
@@ -229,12 +217,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await msg.reply_text(LANG[lang]["settings"], reply_markup=InlineKeyboardMarkup(btns))
 
-# /set conversation
 async def set_ch_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type not in [ChatType.GROUP, ChatType.SUPERGROUP]:
         return ConversationHandler.END
-    if not await is_admin(update, context):
-        await update.message.reply_text("Only admins can set channels.")
+    user_id = update.effective_user.id
+    try:
+        mem = await context.bot.get_chat_member(update.effective_chat.id, user_id)
+        if mem.status not in ('administrator', 'creator'):
+            await update.message.reply_text("Only admins can set channels.")
+            return ConversationHandler.END
+    except:
         return ConversationHandler.END
     lang = await get_lang(update.effective_chat.id, context.application.bot_data["session"])
     await update.message.reply_text(LANG[lang]["set_prompt"])
@@ -249,10 +241,9 @@ async def set_ch_receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text.startswith("@") or "t.me/" in text:
         ch_id = text
     else:
-        await update.message.reply_text("Invalid link/username.")
+        await update.message.reply_text("Invalid format.")
         return ConversationHandler.END
 
-    # check bot admin
     try:
         bot_member = await context.bot.get_chat_member(ch_id, context.bot.id)
         if bot_member.status not in ('administrator', 'creator'):
@@ -265,22 +256,12 @@ async def set_ch_receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(LANG[lang]["set_success"])
     return ConversationHandler.END
 
-async def is_admin(update: Update, context):
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    try:
-        mem = await context.bot.get_chat_member(chat_id, user_id)
-        return mem.status in ('administrator', 'creator')
-    except:
-        return False
-
 set_conv = ConversationHandler(
     entry_points=[CommandHandler("set", set_ch_start)],
     states={SET_CHANNEL_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_ch_receive)]},
     fallbacks=[]
 )
 
-# Broadcast (Developer only)
 async def broadcast_start(update: Update, context):
     if update.effective_user.id != DEVELOPER_ID:
         await update.message.reply_text("Unauthorized.")
@@ -298,7 +279,8 @@ async def broadcast_msg(update: Update, context):
         try:
             await msg.copy(chat_id=cid)
             sent += 1
-        except: pass
+        except:
+            pass
     await msg.reply_text(f"Broadcast sent to {sent}/{len(ids)} chats.")
     return ConversationHandler.END
 
@@ -308,7 +290,6 @@ broadcast_conv = ConversationHandler(
     fallbacks=[]
 )
 
-# Callback handler
 async def callback_handler(update: Update, context):
     query = update.callback_query
     await query.answer()
@@ -322,9 +303,7 @@ async def callback_handler(update: Update, context):
         await query.edit_message_text(LANG[lang]["lang_ok"])
     elif data == "change_lang":
         lang_cur = await get_lang(chat_id, session)
-        btns = []
-        for code, info in LANG.items():
-            btns.append([InlineKeyboardButton(info["flag"], callback_data=f"setlang_{code}")])
+        btns = [[InlineKeyboardButton(LANG[code]["flag"], callback_data=f"setlang_{code}")] for code in LANG]
         btns.append([InlineKeyboardButton(LANG[lang_cur]["back"], callback_data="back_settings")])
         await query.edit_message_text(LANG[lang_cur]["choose_lang"], reply_markup=InlineKeyboardMarkup(btns))
     elif data == "set_force_channel":
@@ -338,7 +317,6 @@ async def callback_handler(update: Update, context):
         ]
         await query.edit_message_text(LANG[lang_cur]["settings"], reply_markup=InlineKeyboardMarkup(btns))
 
-# Welcome handler (Photo Album instead of PIL banner)
 async def new_member(update: Update, context):
     chat = update.effective_chat
     bot = context.bot
@@ -346,26 +324,21 @@ async def new_member(update: Update, context):
     lang = await get_lang(chat.id, session)
 
     group_photo = await get_group_photo_bytes(chat.id, bot)
-    
     for member in update.message.new_chat_members:
         if member.id == bot.id:
             continue
-
         user_photo = await get_photo_bytes(member, bot)
 
-        # Build media group: one photo for group (if exists), one for user, and a caption
         media = []
         if group_photo:
-            media.append(InputMediaPhoto(media=group_photo, caption=None))
+            media.append(InputMediaPhoto(media=group_photo))
         if user_photo:
-            media.append(InputMediaPhoto(media=user_photo, caption=None))
-        
+            media.append(InputMediaPhoto(media=user_photo))
+
         caption = LANG[lang]["welcome"].format(group=chat.title, user=member.mention_html())
         if media:
-            # The last media gets the caption and keyboard
             media[-1].caption = caption
             media[-1].parse_mode = ParseMode.HTML
-            # Add force join buttons
             channels = await get_channels(chat.id, session)
             if channels:
                 btns = []
@@ -375,7 +348,6 @@ async def new_member(update: Update, context):
                 media[-1].reply_markup = InlineKeyboardMarkup(btns)
             await bot.send_media_group(chat_id=chat.id, media=media)
         else:
-            # fallback: no photo, just text
             channels = await get_channels(chat.id, session)
             btns = None
             if channels:
@@ -386,11 +358,9 @@ async def new_member(update: Update, context):
             await bot.send_message(chat.id, caption, parse_mode=ParseMode.HTML,
                                    reply_markup=InlineKeyboardMarkup(btns) if btns else None)
 
-        # Clean up
         if group_photo: group_photo.seek(0)
         if user_photo: user_photo.seek(0)
 
-# Force channel enforcement
 async def message_filter(update: Update, context):
     if not update.message or update.effective_chat.type not in [ChatType.GROUP, ChatType.SUPERGROUP]:
         return
@@ -401,44 +371,55 @@ async def message_filter(update: Update, context):
     channels = await get_channels(chat.id, session)
     if not channels:
         return
-    missing = []
-    for ch in channels:
-        if not await is_member(ch, user.id, bot):
-            missing.append(ch)
+    missing = [ch for ch in channels if not await is_member(ch, user.id, bot)]
     if missing:
         try:
             await update.message.delete()
-            warn = LANG[await get_lang(chat.id, session)]["must_join"].format(channel="\n".join(missing))
+            lang = await get_lang(chat.id, session)
+            warn = LANG[lang]["must_join"].format(channel="\n".join(missing))
             sent = await bot.send_message(chat.id, warn, parse_mode=ParseMode.HTML)
             await asyncio.sleep(5)
             await sent.delete()
-        except: pass
+        except:
+            pass
 
-# Track groups
 async def track_chat(update: Update, context):
     if update.my_chat_member and update.my_chat_member.new_chat_member.status in ('member', 'administrator'):
         await add_broadcast_id(update.effective_chat.id, context.application.bot_data["session"])
 
-async def main():
+# ---------- Post init for session ----------
+async def post_init(application: Application):
+    application.bot_data["session"] = aiohttp.ClientSession()
+    # Ensure DB structure
+    session = application.bot_data["session"]
+    data = await get_data(session)
+    if not data:
+        await save_data(session, {"groups": {}, "broadcast_ids": []})
+
+async def post_shutdown(application: Application):
+    await application.bot_data["session"].close()
+
+# ---------- Main ----------
+def main():
     logging.basicConfig(level=logging.INFO)
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
 
-    async with aiohttp.ClientSession() as session:
-        app.bot_data["session"] = session
+    # Handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(set_conv)
+    app.add_handler(broadcast_conv)
+    app.add_handler(CallbackQueryHandler(callback_handler, pattern="^(setlang_|change_lang|set_force_channel|back_settings)"))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_member))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_filter), group=1)
+    app.add_handler(ChatMemberHandler(track_chat, ChatMemberHandler.MY_CHAT_MEMBER))
 
-        # ensure db
-        if not await get_data(session):
-            await save_data(session, {"groups": {}, "broadcast_ids": []})
-
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(set_conv)
-        app.add_handler(broadcast_conv)
-        app.add_handler(CallbackQueryHandler(callback_handler, pattern="^(setlang_|change_lang|set_force_channel|back_settings)"))
-        app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_member))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_filter), group=1)
-        app.add_handler(ChatMemberHandler(track_chat, ChatMemberHandler.MY_CHAT_MEMBER))
-
-        await app.run_polling()
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
