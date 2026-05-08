@@ -14,6 +14,13 @@ from telegram.ext import (
 from telegram.constants import ChatType, ParseMode
 import aiohttp
 
+# ---------- Logging ----------
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 # ---------- JSON.bin Configuration ----------
 JSONBIN_BIN_ID = "69fcb1edc0954111d8ee7ea5"
 JSONBIN_ACCESS_KEY = "$2a$10$7Nb5QAYjDezYlvPsRMGxnerfh.nthYJtLF3ac54jCIucQUsS3y3Ya"
@@ -40,8 +47,8 @@ LANG = {
         "choose_lang": "Choose bot language:",
         "start_priv": (
             "🤖 <b>Welcome Notify Bot</b>\n\n"
-            "Developer: @bot_developer_io\n"
-            "Helper: @jhgmaing\n\n"
+            "<b>Developer:</b> @bot_developer_io\n"
+            "<b>Helper:</b> @jhgmaing\n\n"
             "Add me to your group/channel."
         ),
         "add_btn": "➕ Add me to your group/channel",
@@ -113,15 +120,16 @@ async def get_data(session) -> dict:
         async with session.get(JSONBIN_BASE_URL + "/latest", headers=JSONBIN_HEADERS) as resp:
             if resp.status == 200:
                 return (await resp.json()).get("record", {})
-    except:
-        pass
+    except Exception as e:
+        logger.error(f"DB get error: {e}")
     return {}
 
 async def save_data(session, data: dict) -> bool:
     try:
         async with session.put(JSONBIN_BASE_URL, json=data, headers=JSONBIN_HEADERS) as resp:
             return resp.status == 200
-    except:
+    except Exception as e:
+        logger.error(f"DB save error: {e}")
         return False
 
 async def get_lang(chat_id: int, session) -> str:
@@ -171,7 +179,8 @@ async def get_photo_bytes(chat_or_user, bot) -> Optional[BytesIO]:
         await file.download_to_memory(bio)
         bio.seek(0)
         return bio
-    except:
+    except Exception as e:
+        logger.warning(f"Could not fetch photo: {e}")
         return None
 
 async def get_group_photo_bytes(chat_id, bot) -> Optional[BytesIO]:
@@ -179,8 +188,8 @@ async def get_group_photo_bytes(chat_id, bot) -> Optional[BytesIO]:
         chat = await bot.get_chat(chat_id)
         if chat.photo:
             return await get_photo_bytes(chat, bot)
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Group photo error: {e}")
     return None
 
 async def is_member(channel_id: str, user_id: int, bot) -> bool:
@@ -203,6 +212,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=btn)
         await add_broadcast_id(chat.id, session)
     else:
+        # Group admin panel
         user_id = update.effective_user.id
         try:
             mem = await context.bot.get_chat_member(chat.id, user_id)
@@ -217,6 +227,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await msg.reply_text(LANG[lang]["settings"], reply_markup=InlineKeyboardMarkup(btns))
 
+# /set conversation
 async def set_ch_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type not in [ChatType.GROUP, ChatType.SUPERGROUP]:
         return ConversationHandler.END
@@ -224,7 +235,7 @@ async def set_ch_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         mem = await context.bot.get_chat_member(update.effective_chat.id, user_id)
         if mem.status not in ('administrator', 'creator'):
-            await update.message.reply_text("Only admins can set channels.")
+            await update.message.reply_text("Only admins can use this command.")
             return ConversationHandler.END
     except:
         return ConversationHandler.END
@@ -241,7 +252,7 @@ async def set_ch_receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text.startswith("@") or "t.me/" in text:
         ch_id = text
     else:
-        await update.message.reply_text("Invalid format.")
+        await update.message.reply_text("Invalid format. Use @username or invite link.")
         return ConversationHandler.END
 
     try:
@@ -262,6 +273,7 @@ set_conv = ConversationHandler(
     fallbacks=[]
 )
 
+# Broadcast (Developer only)
 async def broadcast_start(update: Update, context):
     if update.effective_user.id != DEVELOPER_ID:
         await update.message.reply_text("Unauthorized.")
@@ -290,6 +302,7 @@ broadcast_conv = ConversationHandler(
     fallbacks=[]
 )
 
+# Callback handler for inline buttons
 async def callback_handler(update: Update, context):
     query = update.callback_query
     await query.answer()
@@ -317,50 +330,88 @@ async def callback_handler(update: Update, context):
         ]
         await query.edit_message_text(LANG[lang_cur]["settings"], reply_markup=InlineKeyboardMarkup(btns))
 
-async def new_member(update: Update, context):
+# 🌟 WELCOME HANDLER — THE HEART OF THE BOT 🌟
+async def new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     bot = context.bot
     session = context.application.bot_data["session"]
     lang = await get_lang(chat.id, session)
 
-    group_photo = await get_group_photo_bytes(chat.id, bot)
     for member in update.message.new_chat_members:
+        # বট নিজে জয়েন করলে কিছু করবে না
         if member.id == bot.id:
             continue
-        user_photo = await get_photo_bytes(member, bot)
 
-        media = []
-        if group_photo:
-            media.append(InputMediaPhoto(media=group_photo))
-        if user_photo:
-            media.append(InputMediaPhoto(media=user_photo))
+        logger.info(f"New member {member.full_name} joined {chat.title}")
+        try:
+            group_photo = await get_group_photo_bytes(chat.id, bot)
+            user_photo = await get_photo_bytes(member, bot)
 
-        caption = LANG[lang]["welcome"].format(group=chat.title, user=member.mention_html())
-        if media:
-            media[-1].caption = caption
-            media[-1].parse_mode = ParseMode.HTML
-            channels = await get_channels(chat.id, session)
-            if channels:
-                btns = []
-                for ch in channels:
-                    url = f"https://t.me/{ch[1:]}" if ch.startswith("@") else ch
-                    btns.append([InlineKeyboardButton(LANG[lang]["join_btn"], url=url)])
-                media[-1].reply_markup = InlineKeyboardMarkup(btns)
-            await bot.send_media_group(chat_id=chat.id, media=media)
-        else:
-            channels = await get_channels(chat.id, session)
-            btns = None
-            if channels:
-                btns = []
-                for ch in channels:
-                    url = f"https://t.me/{ch[1:]}" if ch.startswith("@") else ch
-                    btns.append([InlineKeyboardButton(LANG[lang]["join_btn"], url=url)])
-            await bot.send_message(chat.id, caption, parse_mode=ParseMode.HTML,
-                                   reply_markup=InlineKeyboardMarkup(btns) if btns else None)
+            # Build media group
+            media = []
+            if group_photo:
+                media.append(InputMediaPhoto(media=group_photo))
+            if user_photo:
+                media.append(InputMediaPhoto(media=user_photo))
 
-        if group_photo: group_photo.seek(0)
-        if user_photo: user_photo.seek(0)
+            caption = LANG[lang]["welcome"].format(
+                group=chat.title,
+                user=member.mention_html()
+            )
 
+            # If we have at least one photo, send album
+            if media:
+                # Add caption and reply markup to last media
+                media[-1].caption = caption
+                media[-1].parse_mode = ParseMode.HTML
+
+                # Force channel buttons (if any)
+                channels = await get_channels(chat.id, session)
+                if channels:
+                    btns = []
+                    for ch in channels:
+                        url = f"https://t.me/{ch[1:]}" if ch.startswith("@") else ch
+                        btns.append([InlineKeyboardButton(LANG[lang]["join_btn"], url=url)])
+                    media[-1].reply_markup = InlineKeyboardMarkup(btns)
+
+                await bot.send_media_group(chat_id=chat.id, media=media)
+                logger.info(f"Welcome album sent for {member.full_name}")
+            else:
+                # No photo available → send text only
+                channels = await get_channels(chat.id, session)
+                markup = None
+                if channels:
+                    btns = []
+                    for ch in channels:
+                        url = f"https://t.me/{ch[1:]}" if ch.startswith("@") else ch
+                        btns.append([InlineKeyboardButton(LANG[lang]["join_btn"], url=url)])
+                    markup = InlineKeyboardMarkup(btns)
+
+                await bot.send_message(
+                    chat.id,
+                    caption,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=markup
+                )
+                logger.info(f"Text-only welcome sent for {member.full_name}")
+
+        except Exception as e:
+            logger.error(f"Welcome handler error for {member.full_name}: {e}", exc_info=True)
+            # Fallback: সরাসরি টেক্সট ওয়েলকাম দিবে কোনো ছবি ছাড়া
+            try:
+                fallback_text = LANG[lang]["welcome"].format(group=chat.title, user=member.mention_html())
+                await bot.send_message(chat.id, fallback_text, parse_mode=ParseMode.HTML)
+            except:
+                pass
+
+        finally:
+            # Cleanup BytesIO objects
+            if 'group_photo' in locals() and group_photo:
+                group_photo.close()
+            if 'user_photo' in locals() and user_photo:
+                user_photo.close()
+
+# Force channel enforcement
 async def message_filter(update: Update, context):
     if not update.message or update.effective_chat.type not in [ChatType.GROUP, ChatType.SUPERGROUP]:
         return
@@ -371,6 +422,15 @@ async def message_filter(update: Update, context):
     channels = await get_channels(chat.id, session)
     if not channels:
         return
+
+    # Admin/moderator should bypass
+    try:
+        mem = await bot.get_chat_member(chat.id, user.id)
+        if mem.status in ('administrator', 'creator'):
+            return
+    except:
+        pass
+
     missing = [ch for ch in channels if not await is_member(ch, user.id, bot)]
     if missing:
         try:
@@ -380,28 +440,35 @@ async def message_filter(update: Update, context):
             sent = await bot.send_message(chat.id, warn, parse_mode=ParseMode.HTML)
             await asyncio.sleep(5)
             await sent.delete()
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Force-channel error: {e}")
 
+# Track chats for broadcast
 async def track_chat(update: Update, context):
     if update.my_chat_member and update.my_chat_member.new_chat_member.status in ('member', 'administrator'):
         await add_broadcast_id(update.effective_chat.id, context.application.bot_data["session"])
+        logger.info(f"Bot added to chat {update.effective_chat.id}")
 
-# ---------- Post init for session ----------
+# ---------- Session lifecycle ----------
 async def post_init(application: Application):
     application.bot_data["session"] = aiohttp.ClientSession()
-    # Ensure DB structure
     session = application.bot_data["session"]
+    # Initialize DB if empty
     data = await get_data(session)
     if not data:
         await save_data(session, {"groups": {}, "broadcast_ids": []})
+        logger.info("Initialized fresh JSON.bin")
+    else:
+        logger.info("JSON.bin loaded")
 
 async def post_shutdown(application: Application):
-    await application.bot_data["session"].close()
+    session = application.bot_data.get("session")
+    if session:
+        await session.close()
+        logger.info("HTTP session closed")
 
 # ---------- Main ----------
 def main():
-    logging.basicConfig(level=logging.INFO)
     app = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -410,7 +477,7 @@ def main():
         .build()
     )
 
-    # Handlers
+    # Register handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(set_conv)
     app.add_handler(broadcast_conv)
@@ -419,6 +486,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_filter), group=1)
     app.add_handler(ChatMemberHandler(track_chat, ChatMemberHandler.MY_CHAT_MEMBER))
 
+    logger.info("Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
