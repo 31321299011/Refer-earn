@@ -51,7 +51,7 @@ LANG = {
         "must_join": "❌ You must join {channel} to send messages in this group.",
         "set_usage": "Usage: /set https://t.me/yourchannel\nExample: /set https://t.me/smm_24_io",
         "set_success": "✅ Force channel added: {channel}",
-        "set_fail": "❌ I'm not admin in {channel}. Please add me as admin first!",
+        "set_fail": "❌ I'm not admin in {channel}. Please add me as admin first!\n\n1️⃣ Open {channel}\n2️⃣ Go to Settings → Administrators\n3️⃣ Add @{bot_username} as admin",
         "lang_ok": "✅ Language changed to English.",
         "choose_lang": "🌐 Choose bot language:",
         "start_priv": (
@@ -89,7 +89,7 @@ LANG = {
         "must_join": "❌ এই গ্রুপে মেসেজ পাঠাতে {channel} চ্যানেলে যোগ দিন।",
         "set_usage": "ব্যবহার: /set https://t.me/yourchannel\nউদাহরণ: /set https://t.me/smm_24_io",
         "set_success": "✅ ফোর্স চ্যানেল সেট হয়েছে: {channel}",
-        "set_fail": "❌ আমি {channel} চ্যানেলের অ্যাডমিন নই। দয়া করে আগে অ্যাডমিন বানান!",
+        "set_fail": "❌ আমি {channel} চ্যানেলের অ্যাডমিন নই। দয়া করে অ্যাডমিন বানান!\n\n1️⃣ {channel} ওপেন করুন\n2️⃣ Settings → Administrators এ যান\n3️⃣ @{bot_username} কে অ্যাডমিন বানান",
         "lang_ok": "✅ বাংলা ভাষা সেট করা হয়েছে।",
         "choose_lang": "🌐 বটের ভাষা নির্বাচন করুন:",
         "start_priv": (
@@ -127,7 +127,7 @@ LANG = {
         "must_join": "❌ Для отправки сообщений присоединитесь к {channel}.",
         "set_usage": "Использование: /set https://t.me/yourchannel\nПример: /set https://t.me/smm_24_io",
         "set_success": "✅ Канал добавлен: {channel}",
-        "set_fail": "❌ Я не админ в {channel}. Сначала добавьте меня!",
+        "set_fail": "❌ Я не админ в {channel}. Сначала добавьте меня!\n\n1️⃣ Откройте {channel}\n2️⃣ Settings → Administrators\n3️⃣ Добавьте @{bot_username} как админа",
         "lang_ok": "✅ Язык изменён на русский.",
         "choose_lang": "🌐 Выберите язык:",
         "start_priv": (
@@ -160,7 +160,7 @@ LANG = {
         "must_join": "❌ मैसेज करने के लिए {channel} जॉइन करें।",
         "set_usage": "उपयोग: /set https://t.me/yourchannel\nउदाहरण: /set https://t.me/smm_24_io",
         "set_success": "✅ चैनल सेट: {channel}",
-        "set_fail": "❌ मैं {channel} का एडमिन नहीं। पहले जोड़ें!",
+        "set_fail": "❌ मैं {channel} का एडमिन नहीं। पहले जोड़ें!\n\n1️⃣ {channel} खोलें\n2️⃣ Settings → Administrators पर जाएं\n3️⃣ @{bot_username} को एडमिन बनाएं",
         "lang_ok": "✅ भाषा हिन्दी सेट।",
         "choose_lang": "🌐 भाषा चुनें:",
         "start_priv": (
@@ -323,6 +323,44 @@ async def get_group_photo_bytes(chat_id, bot) -> Optional[BytesIO]:
         pass
     return None
 
+# ---------- 🔧 FIXED: Channel Admin Check ----------
+async def check_bot_is_admin(channel_id: str, bot) -> bool:
+    """Check if bot is admin in the channel - 3 different methods"""
+    
+    # Method 1: Direct get_chat_member
+    try:
+        bot_member = await bot.get_chat_member(channel_id, bot.id)
+        if bot_member.status in ['administrator', 'creator']:
+            logger.info(f"✅ Method 1: Bot is {bot_member.status} in {channel_id}")
+            return True
+    except Exception as e1:
+        logger.warning(f"Method 1 failed: {e1}")
+    
+    # Method 2: Get chat info and check
+    try:
+        chat = await bot.get_chat(channel_id)
+        if chat.type in ['channel', 'supergroup']:
+            # If we can get chat info and it's a channel, try to get administrators
+            admins = await chat.get_administrators()
+            for admin in admins:
+                if admin.user.id == bot.id:
+                    logger.info(f"✅ Method 2: Bot found in admin list of {channel_id}")
+                    return True
+    except Exception as e2:
+        logger.warning(f"Method 2 failed: {e2}")
+    
+    # Method 3: Try sending a test message (last resort)
+    try:
+        test_msg = await bot.send_message(channel_id, "🔍 Admin check...", disable_notification=True)
+        await test_msg.delete()
+        logger.info(f"✅ Method 3: Bot can send messages in {channel_id} (must be admin)")
+        return True
+    except Exception as e3:
+        logger.warning(f"Method 3 failed: {e3}")
+    
+    logger.error(f"❌ Bot is NOT admin in {channel_id}")
+    return False
+
 async def is_member(channel_id: str, user_id: int, bot) -> bool:
     try:
         member = await bot.get_chat_member(channel_id, user_id)
@@ -363,15 +401,23 @@ async def set_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(LANG[lang]["set_usage"])
         return
 
-    # 🔧 FIX: Check if bot is admin in the channel
+    # Send checking message
+    checking_msg = await update.message.reply_text(f"🔍 Checking bot admin status in {channel_text}...")
+
+    # 🔧 FIX: Use new admin check method
+    is_admin = await check_bot_is_admin(channel_text, context.bot)
+    
+    # Delete checking message
     try:
-        bot_member = await context.bot.get_chat_member(channel_text, context.bot.id)
-        if bot_member.status not in ('administrator', 'creator'):
-            await update.message.reply_text(LANG[lang]["set_fail"].format(channel=channel_text))
-            return
-    except Exception as e:
-        logger.error(f"Channel admin check failed for {channel_text}: {e}")
-        await update.message.reply_text(LANG[lang]["set_fail"].format(channel=channel_text))
+        await checking_msg.delete()
+    except:
+        pass
+
+    if not is_admin:
+        await update.message.reply_text(
+            LANG[lang]["set_fail"].format(channel=channel_text, bot_username=context.bot.username),
+            disable_web_page_preview=True
+        )
         return
 
     # Add to DB
@@ -463,40 +509,34 @@ async def callback_handler(update: Update, context):
         ]
         await query.edit_message_text(LANG[cur]["settings"], reply_markup=InlineKeyboardMarkup(btns))
 
-# 🌟🔥 PRO WELCOME - EVERY USER GETS WELCOME (even if they leave & rejoin) 🔥🌟
+# 🌟🔥 PRO WELCOME - EVERY USER GETS WELCOME 🔥🌟
 async def new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     bot = context.bot
     session = context.application.bot_data["session"]
     lang = await get_lang(chat.id, session)
 
-    # Loop through ALL new members (handles multiple joins at once)
     for member in update.message.new_chat_members:
-        # Skip if bot itself joins
         if member.id == bot.id:
             continue
 
         logger.info(f"🎉 Welcoming {member.full_name} (ID: {member.id}) to {chat.title}")
 
-        # Get user details
         full_name = member.full_name or member.first_name or "User"
         user_id = member.id
         username = member.username or "N/A"
         mention = member.mention_html()
         join_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Get photos
         group_photo = await get_group_photo_bytes(chat.id, bot)
         user_photo = await get_photo_bytes(member, bot)
 
-        # Create banner
         try:
             banner = create_welcome_banner(group_photo, user_photo, chat.title, full_name, lang)
         except Exception as e:
             logger.error(f"Banner creation failed: {e}")
             banner = None
 
-        # Build caption
         caption = LANG[lang]["welcome_caption"].format(
             group=chat.title,
             name=full_name,
@@ -506,7 +546,6 @@ async def new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
             time=join_time
         )
 
-        # Force channel buttons
         channels = await get_channels(chat.id, session)
         markup = None
         if channels:
@@ -516,7 +555,6 @@ async def new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 btns.append([InlineKeyboardButton(LANG[lang]["join_btn"], url=url)])
             markup = InlineKeyboardMarkup(btns)
 
-        # Send welcome message
         try:
             if banner:
                 await bot.send_photo(chat.id, banner, caption=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
@@ -527,7 +565,6 @@ async def new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f"✅ Text welcome sent for {full_name}")
         except Exception as e:
             logger.error(f"Failed to send welcome: {e}")
-            # Ultimate fallback
             try:
                 await bot.send_message(chat.id, caption, parse_mode=ParseMode.HTML, reply_markup=markup)
             except: pass
@@ -543,13 +580,11 @@ async def message_filter(update: Update, context):
     channels = await get_channels(chat.id, session)
     if not channels:
         return
-    # Skip admins
     try:
         mem = await bot.get_chat_member(chat.id, user.id)
         if mem.status in ('administrator', 'creator'):
             return
     except: pass
-    # Check membership
     missing = [ch for ch in channels if not await is_member(ch, user.id, bot)]
     if missing:
         try:
@@ -592,7 +627,6 @@ def main():
         .build()
     )
 
-    # Register handlers
     app.add_handler(CommandHandler("set", set_channel))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(broadcast_conv)
