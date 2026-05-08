@@ -13,7 +13,7 @@ ADMIN_ID = 8194390770
 CHANNEL_1 = "@earning_channel24"
 CHANNEL_2 = "@smm_24_io"
 CHANNELS = [CHANNEL_1, CHANNEL_2]
-REFERRAL_BONUS = 0.3
+REFERRAL_BONUS = 0.3        # ← 0.3 টাকা
 MIN_WITHDRAW = 1.0
 SUPPORT_USERNAME = "@bot_developer_io"
 
@@ -29,17 +29,11 @@ HEADERS = {
 }
 
 # ==================== স্টেট (ConversationHandler) ====================
-# Withdraw states
 WITHDRAW_AMOUNT, WITHDRAW_PAYMENT = range(2)
-# Broadcast
 BROADCAST_MSG = 2
-# Add balance
 ADD_BAL_USER_ID, ADD_BAL_AMOUNT = range(2, 4)
-# Cut balance
 CUT_BAL_USER_ID, CUT_BAL_AMOUNT = range(4, 6)
-# Ban
 BAN_USER_ID = 6
-# Unban
 UNBAN_USER_ID = 7
 
 # ==================== লগিং ====================
@@ -164,7 +158,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ref_usr["referral_count"] = ref_usr.get("referral_count", 0) + 1
                     await update_user(ref_id, ref_usr)
                     await context.bot.send_message(ref_id,
-                        f"🎉 আপনার রেফারেল @{username} চ্যানেল জয়েন করেছে! আপনি 0.03 টাকা পেয়েছেন।")
+                        f"🎉 আপনার রেফারেল @{username} চ্যানেল জয়েন করেছে! আপনি 0.3 টাকা পেয়েছেন।")
                 usr["referral_credited"] = True
             await update_user(user_id, usr)
         # পূর্ণাঙ্গ মেনু পাঠাই
@@ -183,7 +177,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu_keyboard(is_admin=(user_id == ADMIN_ID))
         )
     else:
-        # জয়েন করানোর ইনলাইন বাটন (শুধু এখানে ইনলাইন)
+        # জয়েন করানোর ইনলাইন বাটন
         inline_kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("📣 Channel 1", url=f"https://t.me/{CHANNEL_1[1:]}"),
              InlineKeyboardButton("📣 Channel 2", url=f"https://t.me/{CHANNEL_2[1:]}")],
@@ -217,7 +211,7 @@ async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                     await update_user(ref_id, ref_usr)
                     try:
                         await context.bot.send_message(ref_id,
-                            f"🎉 আপনার রেফারেল @{query.from_user.username or query.from_user.full_name} চ্যানেল জয়েন করেছে! আপনি 0.03 টাকা পেয়েছেন।")
+                            f"🎉 আপনার রেফারেল @{query.from_user.username or query.from_user.full_name} চ্যানেল জয়েন করেছে! আপনি 0.3 টাকা পেয়েছেন।")
                     except:
                         pass
                 usr["referral_credited"] = True
@@ -245,15 +239,15 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "💰 ব্যালেন্স":
-        bal = user.get("balance", 0.0)
+        bal = user.get("balance", 0.0) if user else 0.0
         await update.message.reply_text(f"💳 আপনার ব্যালেন্স: <b>{bal} টাকা</b>", parse_mode="HTML")
     elif text == "👥 রেফারেল":
         link = f"https://t.me/earning_by_refer24_bot?start={user_id}"
-        count = user.get("referral_count", 0)
+        count = user.get("referral_count", 0) if user else 0
         await update.message.reply_text(
             f"🔗 <b>তোমার রেফারেল লিংক:</b>\n<code>{link}</code>\n\n"
             f"👥 মোট রেফারেল: {count}\n"
-            f"প্রতি রেফার = 0.03 টাকা",
+            f"প্রতি রেফার = 0.3 টাকা",
             parse_mode="HTML"
         )
     elif text == "📤 উইথড্র":
@@ -272,7 +266,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "🆘 হেল্প":
         await update.message.reply_text(
             f"🆘 <b>Earning By Refer24 বট</b>\n\n"
-            f"• রেফার করে আয় 0.03 টাকা\n"
+            f"• রেফার করে আয় 0.3 টাকা\n"
             f"• উইথড্র মিনিমাম 1 টাকা\n"
             f"• জয়েন করতে হবে ২ চ্যানেল\n"
             f"• প্রশ্ন? সাপোর্ট: {SUPPORT_USERNAME}",
@@ -359,6 +353,7 @@ async def withdraw_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     amount = context.user_data["withdraw_amount"]
     user = await get_user(user_id)
+
     # রিকোয়েস্ট তৈরি
     data = await get_data()
     w_list = data.get("withdrawals", [])
@@ -375,9 +370,11 @@ async def withdraw_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     w_list.append(req)
     data["withdrawals"] = w_list
     await save_data(data)
-    # ব্যালেন্স থেকে কেটে নেওয়া (হোল্ড) - আসলে আমরা সাথে সাথে কাটব না, অ্যাডমিন এপ্রুভ করলে কাটব। 
-    # কিন্তু ইউজারকে দেখাতে হবে যে রিকোয়েস্ট হয়েছে, ব্যালেন্স দেখাবে আগের মতোই।
-    # তাই আমরা এখনই কাটছি না।
+
+    # 🔥 এখনই ব্যালেন্স থেকে কেটে নেওয়া হচ্ছে
+    user["balance"] = round(user["balance"] - amount, 2)
+    await update_user(user_id, user)
+
     # অ্যাডমিনকে জানানো
     admin_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ এপ্রুভ", callback_data=f"approve_{req_id}"),
@@ -551,33 +548,26 @@ async def approve_reject_callback(update: Update, context: ContextTypes.DEFAULT_
     if not req:
         await query.answer("রিকোয়েস্ট পাওয়া যায়নি।")
         return
+
     if action == "approve":
-        # ব্যালেন্স চেক ও কাট
-        usr = await get_user(req["user_id"])
-        if usr and usr["balance"] >= req["amount"]:
-            usr["balance"] = round(usr["balance"] - req["amount"], 2)
-            await update_user(req["user_id"], usr)
-            req["status"] = "approved"
-            # ডাটা আপডেট
-            w_list = [r if r["id"] != req_id else req for r in w_list]
-            db["withdrawals"] = w_list
-            await save_data(db)
-            await context.bot.send_message(req["user_id"], f"✅ আপনার {req['amount']} টাকা উইথড্র এপ্রুভ হয়েছে।")
-            await query.edit_message_text(f"✅ #{req_id} এপ্রুভ করা হয়েছে।")
-            # চ্যানেলে ইনভয়েস আপডেট? ঐচ্ছিক
-        else:
-            req["status"] = "rejected"
-            w_list = [r if r["id"] != req_id else req for r in w_list]
-            db["withdrawals"] = w_list
-            await save_data(db)
-            await context.bot.send_message(req["user_id"], "❌ আপনার উইথড্র রিকোয়েস্ট রিজেক্ট হয়েছে (পর্যাপ্ত ব্যালেন্স নেই)।")
-            await query.edit_message_text(f"❌ #{req_id} রিজেক্ট (ব্যালেন্স কম)।")
+        # ইতিমধ্যেই ব্যালেন্স কেটে নেওয়া হয়েছে, শুধু স্টেটাস চেঞ্জ
+        req["status"] = "approved"
+        w_list = [r if r["id"] != req_id else req for r in w_list]
+        db["withdrawals"] = w_list
+        await save_data(db)
+        await context.bot.send_message(req["user_id"], f"✅ আপনার {req['amount']} টাকা উইথড্র এপ্রুভ হয়েছে।")
+        await query.edit_message_text(f"✅ #{req_id} এপ্রুভ করা হয়েছে।")
     else:  # reject
+        # রিজেক্ট করলে টাকা ফেরত দিতে হবে
+        usr = await get_user(req["user_id"])
+        if usr:
+            usr["balance"] = round(usr.get("balance", 0.0) + req["amount"], 2)
+            await update_user(req["user_id"], usr)
         req["status"] = "rejected"
         w_list = [r if r["id"] != req_id else req for r in w_list]
         db["withdrawals"] = w_list
         await save_data(db)
-        await context.bot.send_message(req["user_id"], f"❌ আপনার {req['amount']} টাকা উইথড্র রিজেক্ট হয়েছে।")
+        await context.bot.send_message(req["user_id"], f"❌ আপনার {req['amount']} টাকা উইথড্র রিজেক্ট হয়েছে। ব্যালেন্স ফেরত দেওয়া হয়েছে।")
         await query.edit_message_text(f"❌ #{req_id} রিজেক্ট করা হয়েছে।")
 
 # ==================== মেইন ====================
@@ -592,7 +582,7 @@ def main():
     # উইথড্র এপ্রুভ/রিজেক্ট কলব্যাক
     app.add_handler(CallbackQueryHandler(approve_reject_callback, pattern=r"^(approve|reject)_\d+$"))
 
-    # উইথড্র কনভারসেশন (শুরু হবে "📤 উইথড্র" টেক্সটে)
+    # উইথড্র কনভারসেশন
     withdraw_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^📤 উইথড্র$"), withdraw_start)],
         states={
@@ -605,7 +595,7 @@ def main():
 
     # অ্যাডমিন ব্রডকাস্ট কনভারসেশন
     broadcast_conv = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^📢 ব্রডকাস্ট$"), menu_handler)],  # menu_handler state return BROADCAST_MSG
+        entry_points=[MessageHandler(filters.Regex("^📢 ব্রডকাস্ট$"), menu_handler)],
         states={
             BROADCAST_MSG: [MessageHandler(filters.ALL & ~filters.COMMAND, broadcast_msg)],
         },
@@ -651,10 +641,10 @@ def main():
     )
     app.add_handler(unban_conv)
 
-    # সাধারণ মেনু হ্যান্ডলার (সব কিবোর্ড বাটন যা আলাদা কনভারসেশন নয়)
+    # সাধারণ মেনু হ্যান্ডলার
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_handler))
 
-    # ফলব্যাক (যাতে কিবোর্ডের বাইরে টেক্সট দিলে রিমাইন্ডার দেয়)
+    # ফলব্যাক
     async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❗ দয়া করে নিচের বাটন ব্যবহার করুন।")
     app.add_handler(MessageHandler(filters.ALL, unknown))
