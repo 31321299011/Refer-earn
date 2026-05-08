@@ -5,11 +5,11 @@ from datetime import datetime
 from typing import List, Optional
 
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
 )
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler, ConversationHandler,
-    CallbackQueryHandler, ChatMemberHandler, filters, ContextTypes
+    Application, CommandHandler, MessageHandler,
+    CallbackQueryHandler, ChatMemberHandler, filters, ContextTypes, ConversationHandler
 )
 from telegram.constants import ChatType, ParseMode
 import aiohttp
@@ -29,33 +29,41 @@ BOT_TOKEN = "8796667551:AAFkP5STUqnsV7v0FtVrwnmmBZMJy7U8aaA"
 DEVELOPER_ID = 8194390770
 BOT_USERNAME = "@welcome_notify_bot"
 
-SET_CHANNEL_LINK, BROADCAST_MSG = range(2)
+BROADCAST_MSG = 1
 
-# ---------- Multilingual Pack ----------
+# ---------- 4 Language Welcome Pack ----------
 LANG = {
     "en": {
         "flag": "🇬🇧 English",
-        "banner_text": "Welcome {user}",
+        "banner_text": "✨ Welcome {user} ✨",
         "welcome_caption": (
-            "✨ Welcome to {group} chat 🗨️ ✨\n\n"
-            "🏷 Name: {name}\n"
-            "🆔 User ID: {uid}\n"
-            "🔗 Username: @{uname}\n"
-            "👋 Mention: {mention}\n"
-            "⏰ Joined at: {time}"
+            "🌟 <b>Welcome to {group} Chat</b> 🌟\n\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🏷 <b>Name:</b> {name}\n"
+            "🆔 <b>User ID:</b> <code>{uid}</code>\n"
+            "🔗 <b>Username:</b> @{uname}\n"
+            "👋 <b>Mention:</b> {mention}\n"
+            "⏰ <b>Joined at:</b> <code>{time}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📢 <b>Follow Rules & Enjoy!</b>"
         ),
         "join_btn": "📢 Join Channel",
-        "must_join": "❌ You must join {channel} to send messages.",
-        "set_prompt": "Send channel link/username to force join.",
-        "set_success": "✅ Force channel added.",
-        "set_fail": "❌ I'm not admin in that channel. Add me as admin first.",
-        "lang_ok": "✅ Language set to English.",
-        "choose_lang": "Choose bot language:",
+        "must_join": "❌ You must join {channel} to send messages in this group.",
+        "set_usage": "Usage: /set https://t.me/yourchannel\nExample: /set https://t.me/smm_24_io",
+        "set_success": "✅ Force channel added: {channel}",
+        "set_fail": "❌ I'm not admin in {channel}. Please add me as admin first!",
+        "lang_ok": "✅ Language changed to English.",
+        "choose_lang": "🌐 Choose bot language:",
         "start_priv": (
             "🤖 <b>Welcome Notify Bot</b>\n\n"
-            "<b>Developer:</b> @bot_developer_io\n"
-            "<b>Helper:</b> @jhgmaing\n\n"
-            "Add me to your group/channel."
+            "🔹 <b>Developer:</b> @bot_developer_io\n"
+            "🔹 <b>Helper:</b> @jhgmaing\n\n"
+            "📌 <b>Features:</b>\n"
+            "• Custom Welcome Banner\n"
+            "• Force Channel Support\n"
+            "• Multi-Language\n"
+            "• Broadcast System\n\n"
+            "Add me to your group/channel!"
         ),
         "add_btn": "➕ Add me to your group/channel",
         "settings": "⚙️ Group Settings",
@@ -65,27 +73,35 @@ LANG = {
     },
     "bn": {
         "flag": "🇧🇩 বাংলা",
-        "banner_text": "স্বাগতম {user}",
+        "banner_text": "✨ স্বাগতম {user} ✨",
         "welcome_caption": (
-            "✨ {group} চ্যাটে স্বাগতম 🗨️ ✨\n\n"
-            "🏷 নাম: {name}\n"
-            "🆔 ইউজার আইডি: {uid}\n"
-            "🔗 ইউজারনেম: @{uname}\n"
-            "👋 মেনশন: {mention}\n"
-            "⏰ জয়েন টাইম: {time}"
+            "🌟 <b>{group} চ্যাটে স্বাগতম</b> 🌟\n\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🏷 <b>নাম:</b> {name}\n"
+            "🆔 <b>ইউজার আইডি:</b> <code>{uid}</code>\n"
+            "🔗 <b>ইউজারনেম:</b> @{uname}\n"
+            "👋 <b>মেনশন:</b> {mention}\n"
+            "⏰ <b>জয়েন টাইম:</b> <code>{time}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📢 <b>নিয়ম মেনে চলুন ও উপভোগ করুন!</b>"
         ),
         "join_btn": "📢 চ্যানেলে যুক্ত হন",
-        "must_join": "❌ মেসেজ পাঠাতে {channel} চ্যানেলে যোগ দিন।",
-        "set_prompt": "ফোর্স চ্যানেলের লিংক/ইউজারনেম দিন।",
-        "set_success": "✅ ফোর্স চ্যানেল সেট হয়েছে।",
-        "set_fail": "❌ আমি সেই চ্যানেলের অ্যাডমিন নই। আগে অ্যাডমিন বানান।",
+        "must_join": "❌ এই গ্রুপে মেসেজ পাঠাতে {channel} চ্যানেলে যোগ দিন।",
+        "set_usage": "ব্যবহার: /set https://t.me/yourchannel\nউদাহরণ: /set https://t.me/smm_24_io",
+        "set_success": "✅ ফোর্স চ্যানেল সেট হয়েছে: {channel}",
+        "set_fail": "❌ আমি {channel} চ্যানেলের অ্যাডমিন নই। দয়া করে আগে অ্যাডমিন বানান!",
         "lang_ok": "✅ বাংলা ভাষা সেট করা হয়েছে।",
-        "choose_lang": "ভাষা নির্বাচন করুন:",
+        "choose_lang": "🌐 বটের ভাষা নির্বাচন করুন:",
         "start_priv": (
             "🤖 <b>ওয়েলকাম নোটিফাই বট</b>\n\n"
-            "<b>ডেভেলপার:</b> @bot_developer_io\n"
-            "<b>হেল্পার:</b> @jhgmaing\n\n"
-            "গ্রুপ/চ্যানেলে যুক্ত করুন।"
+            "🔹 <b>ডেভেলপার:</b> @bot_developer_io\n"
+            "🔹 <b>হেল্পার:</b> @jhgmaing\n\n"
+            "📌 <b>ফিচারস:</b>\n"
+            "• কাস্টম ওয়েলকাম ব্যানার\n"
+            "• ফোর্স চ্যানেল সাপোর্ট\n"
+            "• মাল্টি-ল্যাঙ্গুয়েজ\n"
+            "• ব্রডকাস্ট সিস্টেম\n\n"
+            "গ্রুপ/চ্যানেলে যুক্ত করুন!"
         ),
         "add_btn": "➕ গ্রুপ/চ্যানেলে যোগ করুন",
         "settings": "⚙️ গ্রুপ সেটিংস",
@@ -95,23 +111,31 @@ LANG = {
     },
     "ru": {
         "flag": "🇷🇺 Русский",
-        "banner_text": "Добро пожаловать {user}",
+        "banner_text": "✨ Добро пожаловать {user} ✨",
         "welcome_caption": (
-            "✨ Добро пожаловать в {group} чат 🗨️ ✨\n\n"
-            "🏷 Имя: {name}\n"
-            "🆔 ID: {uid}\n"
-            "🔗 Юзернейм: @{uname}\n"
-            "👋 Упоминание: {mention}\n"
-            "⏰ Присоединился: {time}"
+            "🌟 <b>Добро пожаловать в {group} Чат</b> 🌟\n\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🏷 <b>Имя:</b> {name}\n"
+            "🆔 <b>ID:</b> <code>{uid}</code>\n"
+            "🔗 <b>Юзернейм:</b> @{uname}\n"
+            "👋 <b>Упоминание:</b> {mention}\n"
+            "⏰ <b>Присоединился:</b> <code>{time}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📢 <b>Соблюдайте правила!</b>"
         ),
         "join_btn": "📢 Присоединиться",
-        "must_join": "❌ Для сообщений нужно быть в {channel}.",
-        "set_prompt": "Отправьте ссылку/username канала.",
-        "set_success": "✅ Канал добавлен.",
-        "set_fail": "❌ Я не админ в этом канале.",
-        "lang_ok": "✅ Язык: Русский.",
-        "choose_lang": "Выберите язык:",
-        "start_priv": "🤖 <b>Welcome Notify Bot</b>\n\nРазработчик: @bot_developer_io",
+        "must_join": "❌ Для отправки сообщений присоединитесь к {channel}.",
+        "set_usage": "Использование: /set https://t.me/yourchannel\nПример: /set https://t.me/smm_24_io",
+        "set_success": "✅ Канал добавлен: {channel}",
+        "set_fail": "❌ Я не админ в {channel}. Сначала добавьте меня!",
+        "lang_ok": "✅ Язык изменён на русский.",
+        "choose_lang": "🌐 Выберите язык:",
+        "start_priv": (
+            "🤖 <b>Welcome Notify Bot</b>\n\n"
+            "🔹 <b>Разработчик:</b> @bot_developer_io\n"
+            "🔹 <b>Помощник:</b> @jhgmaing\n\n"
+            "Добавьте в группу/канал!"
+        ),
         "add_btn": "➕ Добавить в группу/канал",
         "settings": "⚙️ Настройки",
         "set_ch_btn": "📌 Обязательный канал",
@@ -120,23 +144,31 @@ LANG = {
     },
     "hi": {
         "flag": "🇮🇳 हिन्दी",
-        "banner_text": "स्वागत है {user}",
+        "banner_text": "✨ सुस्वागतम् {user} ✨",
         "welcome_caption": (
-            "✨ {group} चैट में स्वागत 🗨️ ✨\n\n"
-            "🏷 नाम: {name}\n"
-            "🆔 आईडी: {uid}\n"
-            "🔗 यूजरनेम: @{uname}\n"
-            "👋 उल्लेख: {mention}\n"
-            "⏰ जॉइन समय: {time}"
+            "🌟 <b>{group} चैट में स्वागत</b> 🌟\n\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🏷 <b>नाम:</b> {name}\n"
+            "🆔 <b>आईडी:</b> <code>{uid}</code>\n"
+            "🔗 <b>यूजरनेम:</b> @{uname}\n"
+            "👋 <b>उल्लेख:</b> {mention}\n"
+            "⏰ <b>जॉइन समय:</b> <code>{time}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📢 <b>नियमों का पालन करें!</b>"
         ),
         "join_btn": "📢 चैनल से जुड़ें",
-        "must_join": "❌ मैसेज के लिए {channel} जॉइन करें।",
-        "set_prompt": "फोर्स चैनल का लिंक/यूजरनेम भेजें।",
-        "set_success": "✅ चैनल सेट हो गया।",
-        "set_fail": "❌ मैं उस चैनल का एडमिन नहीं।",
+        "must_join": "❌ मैसेज करने के लिए {channel} जॉइन करें।",
+        "set_usage": "उपयोग: /set https://t.me/yourchannel\nउदाहरण: /set https://t.me/smm_24_io",
+        "set_success": "✅ चैनल सेट: {channel}",
+        "set_fail": "❌ मैं {channel} का एडमिन नहीं। पहले जोड़ें!",
         "lang_ok": "✅ भाषा हिन्दी सेट।",
-        "choose_lang": "भाषा चुनें:",
-        "start_priv": "🤖 <b>वेलकम नोटिफाई बॉट</b>\n\nडेवलपर: @bot_developer_io",
+        "choose_lang": "🌐 भाषा चुनें:",
+        "start_priv": (
+            "🤖 <b>वेलकम नोटिफाई बॉट</b>\n\n"
+            "🔹 <b>डेवलपर:</b> @bot_developer_io\n"
+            "🔹 <b>हेल्पर:</b> @jhgmaing\n\n"
+            "ग्रुप/चैनल में जोड़ें!"
+        ),
         "add_btn": "➕ ग्रुप/चैनल में जोड़ें",
         "settings": "⚙️ सेटिंग्स",
         "set_ch_btn": "📌 फोर्स चैनल",
@@ -210,10 +242,9 @@ def create_welcome_banner(group_photo: Optional[BytesIO], user_photo: Optional[B
         b = int(43 + (81 - 43) * ratio)
         draw.line((0, i, width, i), fill=(r, g, b))
 
-    # Try to load a nice font, fallback to default
     try:
-        font_welcome = ImageFont.truetype("arial.ttf", 45)
-        font_title = ImageFont.truetype("arial.ttf", 32)
+        font_welcome = ImageFont.truetype("arial.ttf", 40)
+        font_title = ImageFont.truetype("arial.ttf", 28)
     except:
         font_welcome = ImageFont.load_default()
         font_title = ImageFont.load_default()
@@ -221,28 +252,28 @@ def create_welcome_banner(group_photo: Optional[BytesIO], user_photo: Optional[B
     # Place group photo (circle) left
     if group_photo:
         try:
-            g_img = Image.open(group_photo).convert("RGBA").resize((140, 140))
+            g_img = Image.open(group_photo).convert("RGBA").resize((130, 130))
         except:
-            g_img = Image.new("RGBA", (140, 140), (100, 100, 100))
+            g_img = Image.new("RGBA", (130, 130), (100, 100, 100))
     else:
-        g_img = Image.new("RGBA", (140, 140), (100, 100, 100))
-    mask = Image.new("L", (140, 140), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 139, 139), fill=255)
+        g_img = Image.new("RGBA", (130, 130), (100, 100, 100))
+    mask = Image.new("L", (130, 130), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, 129, 129), fill=255)
     g_img.putalpha(mask)
-    img.paste(g_img, (60, 130), g_img)
+    img.paste(g_img, (70, 135), g_img)
 
     # Place user photo (circle) right
     if user_photo:
         try:
-            u_img = Image.open(user_photo).convert("RGBA").resize((140, 140))
+            u_img = Image.open(user_photo).convert("RGBA").resize((130, 130))
         except:
-            u_img = Image.new("RGBA", (140, 140), (150, 150, 150))
+            u_img = Image.new("RGBA", (130, 130), (150, 150, 150))
     else:
-        u_img = Image.new("RGBA", (140, 140), (150, 150, 150))
+        u_img = Image.new("RGBA", (130, 130), (150, 150, 150))
     u_img.putalpha(mask)
-    img.paste(u_img, (600, 130), u_img)
+    img.paste(u_img, (600, 135), u_img)
 
-    # Welcome text (language dependent)
+    # Welcome text
     welcome_str = LANG.get(lang_code, LANG["en"])["banner_text"].format(user=user_name)
     bbox = draw.textbbox((0, 0), welcome_str, font=font_welcome)
     tw = bbox[2] - bbox[0]
@@ -252,13 +283,13 @@ def create_welcome_banner(group_photo: Optional[BytesIO], user_photo: Optional[B
     g_text = group_name[:30]
     gbox = draw.textbbox((0, 0), g_text, font=font_title)
     gw = gbox[2] - gbox[0]
-    draw.text(((width - gw) // 2, 330), g_text, fill=(200, 200, 200), font=font_title)
+    draw.text(((width - gw) // 2, 318), g_text, fill=(200, 200, 200), font=font_title)
 
     # User name
     u_text = user_name[:25]
     ubox = draw.textbbox((0, 0), u_text, font=font_title)
     uw = ubox[2] - ubox[0]
-    draw.text(((width - uw) // 2, 365), u_text, fill=(200, 200, 200), font=font_title)
+    draw.text(((width - uw) // 2, 355), u_text, fill=(200, 200, 200), font=font_title)
 
     output = BytesIO()
     img.save(output, format="PNG")
@@ -299,6 +330,54 @@ async def is_member(channel_id: str, user_id: int, bot) -> bool:
     except:
         return False
 
+# ---------- 🔧 FIXED: /set command ----------
+async def set_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """One-step /set command: /set https://t.me/smm_24_io"""
+    if update.effective_chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await update.message.reply_text("This command only works in groups.")
+        return
+
+    # Admin check
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    try:
+        mem = await context.bot.get_chat_member(chat_id, user_id)
+        if mem.status not in ('administrator', 'creator'):
+            await update.message.reply_text("Only admins can use this command.")
+            return
+    except:
+        return
+
+    session = context.application.bot_data["session"]
+    lang = await get_lang(chat_id, session)
+
+    # Get channel from command argument
+    if not context.args:
+        await update.message.reply_text(LANG[lang]["set_usage"])
+        return
+
+    channel_text = context.args[0].strip()
+
+    # Validate format
+    if not (channel_text.startswith("@") or "t.me/" in channel_text or "telegram.me/" in channel_text):
+        await update.message.reply_text(LANG[lang]["set_usage"])
+        return
+
+    # 🔧 FIX: Check if bot is admin in the channel
+    try:
+        bot_member = await context.bot.get_chat_member(channel_text, context.bot.id)
+        if bot_member.status not in ('administrator', 'creator'):
+            await update.message.reply_text(LANG[lang]["set_fail"].format(channel=channel_text))
+            return
+    except Exception as e:
+        logger.error(f"Channel admin check failed for {channel_text}: {e}")
+        await update.message.reply_text(LANG[lang]["set_fail"].format(channel=channel_text))
+        return
+
+    # Add to DB
+    await add_channel(chat_id, channel_text, session)
+    await update.message.reply_text(LANG[lang]["set_success"].format(channel=channel_text))
+
 # ---------- Handlers ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
@@ -314,7 +393,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await add_broadcast_id(chat.id, session)
     else:
-        # Admin panel in group
         user_id = update.effective_user.id
         try:
             mem = await context.bot.get_chat_member(chat.id, user_id)
@@ -328,52 +406,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton(LANG[lang]["lang_btn"], callback_data="change_lang")]
         ]
         await msg.reply_text(LANG[lang]["settings"], reply_markup=InlineKeyboardMarkup(btns))
-
-# /set conversation
-async def set_ch_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
-        return ConversationHandler.END
-    user_id = update.effective_user.id
-    try:
-        mem = await context.bot.get_chat_member(update.effective_chat.id, user_id)
-        if mem.status not in ('administrator', 'creator'):
-            await update.message.reply_text("Only admins can use this command.")
-            return ConversationHandler.END
-    except:
-        return ConversationHandler.END
-    lang = await get_lang(update.effective_chat.id, context.application.bot_data["session"])
-    await update.message.reply_text(LANG[lang]["set_prompt"])
-    return SET_CHANNEL_LINK
-
-async def set_ch_receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    text = update.message.text.strip()
-    session = context.application.bot_data["session"]
-    lang = await get_lang(chat_id, session)
-
-    if text.startswith("@") or "t.me/" in text:
-        ch_id = text
-    else:
-        await update.message.reply_text("Invalid format. Use @username or invite link.")
-        return ConversationHandler.END
-
-    try:
-        bot_member = await context.bot.get_chat_member(ch_id, context.bot.id)
-        if bot_member.status not in ('administrator', 'creator'):
-            raise Exception
-    except:
-        await update.message.reply_text(LANG[lang]["set_fail"])
-        return ConversationHandler.END
-
-    await add_channel(chat_id, ch_id, session)
-    await update.message.reply_text(LANG[lang]["set_success"])
-    return ConversationHandler.END
-
-set_conv = ConversationHandler(
-    entry_points=[CommandHandler("set", set_ch_start)],
-    states={SET_CHANNEL_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_ch_receive)]},
-    fallbacks=[]
-)
 
 # Broadcast
 async def broadcast_start(update: Update, context):
@@ -422,7 +454,7 @@ async def callback_handler(update: Update, context):
         await query.edit_message_text(LANG[cur]["choose_lang"], reply_markup=InlineKeyboardMarkup(btns))
     elif data == "set_force_channel":
         cur = await get_lang(chat_id, session)
-        await query.edit_message_text(f"Use /set command to add a channel.\n{LANG[cur]['set_prompt']}")
+        await query.edit_message_text(f"Use /set command:\n{LANG[cur]['set_usage']}")
     elif data == "back_settings":
         cur = await get_lang(chat_id, session)
         btns = [
@@ -431,36 +463,40 @@ async def callback_handler(update: Update, context):
         ]
         await query.edit_message_text(LANG[cur]["settings"], reply_markup=InlineKeyboardMarkup(btns))
 
-# 🌟 MAIN WELCOME 🌟
+# 🌟🔥 PRO WELCOME - EVERY USER GETS WELCOME (even if they leave & rejoin) 🔥🌟
 async def new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     bot = context.bot
     session = context.application.bot_data["session"]
     lang = await get_lang(chat.id, session)
 
+    # Loop through ALL new members (handles multiple joins at once)
     for member in update.message.new_chat_members:
+        # Skip if bot itself joins
         if member.id == bot.id:
             continue
 
-        # Prepare user details
+        logger.info(f"🎉 Welcoming {member.full_name} (ID: {member.id}) to {chat.title}")
+
+        # Get user details
         full_name = member.full_name or member.first_name or "User"
         user_id = member.id
-        username = member.username or "no_username"
+        username = member.username or "N/A"
         mention = member.mention_html()
-        join_time = update.message.date.strftime("%Y-%m-%d %H:%M:%S")  # UTC, but you can adjust
+        join_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Get photos
         group_photo = await get_group_photo_bytes(chat.id, bot)
         user_photo = await get_photo_bytes(member, bot)
 
-        # Generate banner
+        # Create banner
         try:
             banner = create_welcome_banner(group_photo, user_photo, chat.title, full_name, lang)
         except Exception as e:
             logger.error(f"Banner creation failed: {e}")
             banner = None
 
-        # Build caption (the detailed info)
+        # Build caption
         caption = LANG[lang]["welcome_caption"].format(
             group=chat.title,
             name=full_name,
@@ -480,20 +516,17 @@ async def new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 btns.append([InlineKeyboardButton(LANG[lang]["join_btn"], url=url)])
             markup = InlineKeyboardMarkup(btns)
 
-        # Send banner + caption
+        # Send welcome message
         try:
             if banner:
-                await bot.send_photo(
-                    chat.id, banner,
-                    caption=caption,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=markup
-                )
+                await bot.send_photo(chat.id, banner, caption=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
                 banner.close()
+                logger.info(f"✅ Welcome banner sent for {full_name}")
             else:
                 await bot.send_message(chat.id, caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+                logger.info(f"✅ Text welcome sent for {full_name}")
         except Exception as e:
-            logger.error(f"Sending welcome failed: {e}")
+            logger.error(f"Failed to send welcome: {e}")
             # Ultimate fallback
             try:
                 await bot.send_message(chat.id, caption, parse_mode=ParseMode.HTML, reply_markup=markup)
@@ -516,6 +549,7 @@ async def message_filter(update: Update, context):
         if mem.status in ('administrator', 'creator'):
             return
     except: pass
+    # Check membership
     missing = [ch for ch in channels if not await is_member(ch, user.id, bot)]
     if missing:
         try:
@@ -531,6 +565,7 @@ async def message_filter(update: Update, context):
 async def track_chat(update: Update, context):
     if update.my_chat_member and update.my_chat_member.new_chat_member.status in ('member', 'administrator'):
         await add_broadcast_id(update.effective_chat.id, context.application.bot_data["session"])
+        logger.info(f"📝 Added to broadcast list: {update.effective_chat.id}")
 
 # ---------- Session lifecycle ----------
 async def post_init(application: Application):
@@ -539,11 +574,13 @@ async def post_init(application: Application):
     data = await get_data(session)
     if not data:
         await save_data(session, {"groups": {}, "broadcast_ids": []})
+        logger.info("✅ Initialized fresh JSON.bin")
 
 async def post_shutdown(application: Application):
     session = application.bot_data.get("session")
     if session:
         await session.close()
+        logger.info("🛑 Session closed")
 
 # ---------- Main ----------
 def main():
@@ -555,15 +592,16 @@ def main():
         .build()
     )
 
+    # Register handlers
+    app.add_handler(CommandHandler("set", set_channel))
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(set_conv)
     app.add_handler(broadcast_conv)
     app.add_handler(CallbackQueryHandler(callback_handler, pattern="^(setlang_|change_lang|set_force_channel|back_settings)"))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_member))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_filter), group=1)
     app.add_handler(ChatMemberHandler(track_chat, ChatMemberHandler.MY_CHAT_MEMBER))
 
-    logger.info("Bot is live!")
+    logger.info("🔥 Welcome Notify Bot is LIVE!")
     app.run_polling()
 
 if __name__ == "__main__":
